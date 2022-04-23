@@ -27,6 +27,7 @@ class Mimic3(Dataset):
         self.load_tables(data_path)
         self.data = self.build_medical_concepts()
         self.labels = self.find_cohorts()
+        self.info = self.find_patient_info()
         
         self.vocab = None
         if apply_vocab:
@@ -61,27 +62,12 @@ class Mimic3(Dataset):
     
         
     def load_tables(self, data_path): 
-        df = pd.read_csv(data_path + 'ADMISSIONS.csv')
+        df = pd.read_csv(data_path + 'ADMISSIONS.csv',
+                        parse_dates=['ADMITTIME', 'DISCHTIME', 'EDREGTIME', 'EDOUTTIME', 'DEATHTIME'])
         diag_icd = pd.read_csv(data_path + 'DIAGNOSES_ICD.csv')
         drgcodes = pd.read_csv(data_path + 'PRESCRIPTIONS.csv')
         proc_icd = pd.read_csv(data_path + 'PROCEDURES_ICD.csv')
         diag_desc = pd.read_csv(data_path + 'D_ICD_DIAGNOSES.csv')
-
-        df['ADMITTIME'] = pd.to_datetime(df.ADMITTIME, format='%Y-%m-%d %H:%M:%S')
-        df['ADMITTIME'] = pd.to_datetime(df.ADMITTIME, format='%Y-%m-%d')
-        df['ADMITTIME'] = df['ADMITTIME'].dt.strftime('%Y-%m-%d')
-
-        df['DISCHTIME'] = pd.to_datetime(df.DISCHTIME, format='%Y-%m-%d %H:%M:%S')
-        df['DISCHTIME'] = pd.to_datetime(df.DISCHTIME, format='%Y-%m-%d')
-        df['DISCHTIME'] = df['DISCHTIME'].dt.strftime('%Y-%m-%d')
-
-        df['EDREGTIME'] = pd.to_datetime(df.EDREGTIME, format='%Y-%m-%d %H:%M:%S')
-        df['EDREGTIME'] = pd.to_datetime(df.EDREGTIME, format='%Y-%m-%d')
-        df['EDREGTIME'] = df['EDREGTIME'].dt.strftime('%Y-%m-%d')
-
-        df['EDOUTTIME'] = pd.to_datetime(df.EDOUTTIME, format='%Y-%m-%d %H:%M:%S')
-        df['EDOUTTIME'] = pd.to_datetime(df.EDOUTTIME, format='%Y-%m-%d')
-        df['EDOUTTIME'] = df['EDOUTTIME'].dt.strftime('%Y-%m-%d')
 
         diag_icd = diag_icd.merge(diag_desc, on='ICD9_CODE', how='inner')
         
@@ -134,19 +120,26 @@ class Mimic3(Dataset):
     def build_medical_concepts(self):
         remove_ids = self.filter_subjects()
         
-        proc = (self.proc_icd.groupby('SUBJECT_ID')['ICD9_CODE']
+        
+        proc = (self.proc_icd
+                .sort_values('SEQ_NUM', ascending=True)
+                .groupby(['SUBJECT_ID', 'HADM_ID'])['ICD9_CODE']
                 .aggregate(list)
                 .rename('PROC')
                 .apply(lambda codes: ['PROC_'+str(c) for c in codes])
         )
         
-        drug = (self.drgcodes.groupby('SUBJECT_ID')['NDC']
+        drug = (self.drgcodes
+                .sort_values('STARTDATE', ascending=True)
+                .groupby(['SUBJECT_ID', 'HADM_ID'])['NDC']
                 .aggregate(list)
                 .rename('DRUG')
                 .apply(lambda codes: ['DRUG_'+str(c) for c in codes])
         )
         
-        diag = (self.diag_icd.groupby('SUBJECT_ID')['ICD9_CODE']
+        diag = (self.diag_icd
+                .sort_values('SEQ_NUM', ascending=True)
+                .groupby(['SUBJECT_ID', 'HADM_ID'])['ICD9_CODE']
                 .aggregate(list)
                 .rename('DIAG')
                 .apply(lambda codes: ['DIAG_'+str(c) for c in codes])
@@ -161,10 +154,16 @@ class Mimic3(Dataset):
         
         med_concepts = med_concepts['DIAG'] + med_concepts['PROC'] + med_concepts['DRUG']
         
+        med_concepts = (med_concepts.reset_index()
+                        .sort_values('HADM_ID')
+                        .groupby('SUBJECT_ID')[0]
+                        .aggregate(sum))
+        
         # remove subjects with less than 30 codes #TODO
-        med_concepts = med_concepts[med_concepts.apply(len) > 30]
+        med_concepts = med_concepts[med_concepts.apply(len) >= 30]
 
         return med_concepts
+    
 
     def find_cohorts(self):
         """finds cohorts of each subject"""
@@ -181,3 +180,20 @@ class Mimic3(Dataset):
             labels.append(label)    
         
         return labels
+    
+    
+    def find_patient_info(self):
+        dischtime = self.df.groupby('SUBJECT_ID')['DISCHTIME'].max()
+        deathtime = self.df.groupby('SUBJECT_ID')['DEATHTIME'].aggregate(
+            lambda x: np.nan if x.isna().all() else x[~x.isna()]
+        )
+        n_admissions = self.df.groupby('SUBJECT_ID')['HADM_ID'].size().rename('NADMISSIONS')
+        
+        info = pd.concat((self.data, dischtime, deathtime, n_admissions), axis=1, join='inner')
+        
+        return info[['DISCHTIME', 'DEATHTIME', 'NADMISSIONS']]
+        
+        
+        
+        
+        
