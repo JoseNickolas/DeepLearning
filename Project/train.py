@@ -59,6 +59,7 @@ def train_word2vec():
 
     sg_dataloader = DataLoader(sg_dataset, batch_size=sg_batch)
     
+    loss_list = []
     for i in trange(sg_epochs, desc='Training word2vec'):
         for center, context in tqdm(sg_dataloader, desc=f'epoch {i}'):
             center, context = center.to(DEVICE), context.to(DEVICE)
@@ -69,8 +70,9 @@ def train_word2vec():
             loss.backward()
             optim.step()
             optim.zero_grad()
+            loss_list.append(loss.item())
     
-    return word2vec
+    return word2vec, loss_list
 
 
 def coallate(batch):
