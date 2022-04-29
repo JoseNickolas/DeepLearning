@@ -15,8 +15,8 @@ class Mimic3(Dataset):
             cohorts = ['Atherosclerosis',
                        'Heart Failure',
                        'Kidney Failure',
-                       'Intestinal Diseases',
-                       'Liver Diseases',
+                       'Intestinal Diseases', # check this
+                       'Liver Diseases', # check for this
                        'Pneumonia',
                        'Septicemia',
                        'Respiratory Failure',
@@ -146,7 +146,7 @@ class Mimic3(Dataset):
                 )
         
         med_concepts = pd.concat([diag, drug, proc], axis=1, join='outer')
-        med_concepts.drop(index=remove_ids, errors='ignore', inplace=True)
+        med_concepts.drop(index=remove_ids, level='SUBJECT_ID', errors='ignore', inplace=True)
         
         # replace NAN with [] on every column
         for c in med_concepts.columns:

@@ -1,19 +1,20 @@
-from tkinter import N
+from datetime import datetime
+
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from sklearn.decomposition import PCA
+from sklearn.metrics import pairwise_distances, pairwise_distances_chunked
+# from sklearn.metrics.pairwise import cosine_similarity
 from torch.utils.data import DataLoader
 from tqdm import tqdm, trange
-from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.metrics import pairwise_distances
-from sklearn.decomposition import PCA
+
 from mimic import Mimic3
 from model import PatientSimiEval
 from siamese_cnn import SiameseCNN
 from utils import pairwise_intersect
 from word2vec import SkipGramDataset, Word2Vec
-from datetime import datetime
 
 # constants
 DATASET_PATH = '../../../Project/Dataset/all_files/'
@@ -117,30 +118,34 @@ for epoch in trange(scnn_epochs, desc='Training PSE'):
 
 
 # most similar patients:
-reprs = [pse_model(codes).detach().cpu().numpy() for codes, _ in data_loader]
-reprs = np.vstack(reprs)
+reprs_pse = [pse_model(codes).detach().cpu().numpy() for codes, _ in tqdm(data_loader)]
+reprs_pse = np.vstack(reprs_pse)
 
-pdist =  cosine_similarity(reprs)
-np.fill_diagonal(pdist, -2)
-nearest_pse = pdist.argmax(axis=1)
+def find_nearest(representation, metric):
+    nearest = []
+    for pdist in pairwise_distances_chunked(representation, metric=metric):
+        if metric == 'cosine':
+            pdist = 1 - pdist
+        np.fill_diagonal(pdist, np.inf)
+        nearest.append(pdist.argmin(axis=1))
+    return np.hstack(nearest)
+
+nearest_pse = find_nearest(reprs_pse, metric='cosine')
 
 
 # BASELINES
-codes_onehot = np.zeros((len(dataset), dataset.num_codes()), dtype=np.int32)
+codes_onehot = np.zeros((len(dataset), dataset.num_codes()), dtype=bool)
 for i, (codes, _) in enumerate(dataset):
-    codes[i, codes] = 1
+    codes_onehot[i, codes] = 1
     
 # PCA: pca of one-hode encoded codes
 pca = PCA(n_components=out_dim) #  cohorts
-codes_pca = pca.fit_transform(codes_onehot) # (N, 9)
-pdist_pca = pairwise_distances(codes_pca) # pairwise euclidean dist
-np.fill_diagonal(pdist_pca, np.inf) # ignore the diaginals
-nearest_pca = pdist_pca.argmin(axis=1) # closest patients based on PCA
+reprs_pca = pca.fit_transform(codes_onehot) # (N, 9)
+nearest_pca = find_nearest(reprs_pca, metric='euclidean')
 
 # Hamming distance:
-pdist_hamming = pairwise_distances(codes_onehot, metirc='hamming')
-np.fill_diagonal(pdist_hamming, np.inf) # ignore the diaginals
-nearest_hamming = pdist_hamming.argmin(axis=1) # closest patients based on PCA
+reprs_hamming = codes_onehot
+nearest_hamming = find_nearest(reprs_hamming, metric='hamming')
 
 
 
@@ -176,3 +181,47 @@ hrr = {}
 for name, nearest in methods.items():
     irdm[name] = inc_rate_mortality(nearest)
     hrr[name] = hospital_readmin_rate(nearest)
+
+
+
+# Disease Cohort Classification
+
+from sklearn.preprocessing import MultiLabelBinarizer
+from sklearn.neural_network import MLPClassifier
+from sklearn.model_selection import KFold
+from sklearn.metrics import roc_auc_score
+
+labels = dataset.labels
+
+mlb = MultiLabelBinarizer()
+y = mlb.fit_transform(labels)
+
+
+
+methods = {
+    "PSE": reprs_pse,
+    "PCA": reprs_pca,
+}
+method_acc = {}
+method_auc = {}
+
+for name, x in methods.item():
+
+    kf = KFold(n_splits=10)
+    score = []
+    auc = []
+    for train_index, test_index in kf.split(x):
+        x_train, x_test = x[train_index], x[test_index]
+        y_train, y_test = y[train_index], y[test_index]
+
+        clf = MLPClassifier().fit(x_train, y_train)
+        # y_hat  = clf.predict(x_test)
+        y_hat_prob = clf.predict_proba(x_test)
+        auc.append(roc_auc_score(y_test, y_hat_prob))
+        score.append(clf.score(x_test, y_test)) # provides mean accuracy
+
+    method_acc[name] = score
+    method_auc[name] = auc
+
+
+
