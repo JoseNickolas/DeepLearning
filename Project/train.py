@@ -9,14 +9,16 @@ from sklearn.metrics import pairwise_distances, pairwise_distances_chunked
 from torch.utils.data import DataLoader
 from tqdm import tqdm, trange
 
-from mimic import Mimic3
-from model import PatientSimiEval
-from siamese_cnn import SiameseCNN
-from utils import pairwise_intersect
-from word2vec import SkipGramDataset, Word2Vec
+from .mimic import Mimic3
+from .model import PatientSimiEval
+from .siamese_cnn import SiameseCNN
+from .utils import pairwise_intersect
+from .word2vec import SkipGramDataset, Word2Vec
 
 # constants
-DATASET_PATH = '../../../Project/Dataset/all_files/'
+# DATASET_PATH = '../../../Project/Dataset/all_files/'
+DATASET_PATH = '/content/drive/MyDrive/mimic3/'
+
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 

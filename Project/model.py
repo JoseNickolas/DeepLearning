@@ -1,11 +1,11 @@
-from turtle import forward
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset
 import torch.nn.functional as F
-from torch.nn.utils.rnn import pad_sequence
-from siamese_cnn import SiameseCNN
-from word2vec import Word2Vec
+# from torch.nn.utils.rnn import pad_sequence
+
+from .siamese_cnn import SiameseCNN
+from .word2vec import Word2Vec
 
 
 class PatientSimiEval(nn.Module):
