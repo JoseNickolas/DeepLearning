@@ -25,20 +25,20 @@ DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 # Hyperparamers:
 # word2vec
 emb_dim = 100
-alpha = 1
-beta = 3
-sg_lr = 0.1
-sg_epochs = 1
-sg_batch = 512
+alpha = 30
+beta = 60
+sg_lr = 0.05
+sg_epochs = 500
+sg_batch = 128
 # siamese
 feature_maps = 100
 kernel_size = 5
 spp_levels = (4, 2, 1)
 out_dim = 10
-scnn_epochs = 1000
-scnn_batch = 32
-sc_lr = 0.1
-margin = 5
+scnn_epochs = 500
+scnn_batch = 128
+sc_lr = 0.05
+margin = 0.5
 
 
 # create the main dataset of medical concept sequences (preprocessing) 
