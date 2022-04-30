@@ -50,7 +50,7 @@ num_codes = dataset.num_codes() # total number of unique medical codes
 sg_dataset = SkipGramDataset(dataset, alpha=alpha, beta=beta)
 
 
-def train_word2vec():
+def train_word2vec(MODEL_PATH=None):
     # train word2vec model
     word2vec = Word2Vec(emb_dim, num_codes)
     word2vec.to(DEVICE)
@@ -60,8 +60,8 @@ def train_word2vec():
     sg_dataloader = DataLoader(sg_dataset, batch_size=sg_batch)
     
     loss_list = []
-    for i in trange(sg_epochs, desc='Training word2vec'):
-        for center, context in tqdm(sg_dataloader, desc=f'epoch {i}'):
+    for epoch in trange(sg_epochs, desc='Training word2vec'):
+        for i, (center, context) in tqdm(enumerate(sg_dataloader)):
             center, context = center.to(DEVICE), context.to(DEVICE)
             
             pred = word2vec(center)
@@ -70,7 +70,12 @@ def train_word2vec():
             loss.backward()
             optim.step()
             optim.zero_grad()
-            loss_list.append(loss.item())
+            
+            if i % 100 == 0:
+                loss_list.append(loss.item())
+        
+        if MODEL_PATH is not None:
+            torch.save(word2vec, MODEL_PATH + f'word2vec_{epoch}' )
     
     return word2vec, loss_list
 
@@ -94,7 +99,7 @@ def contrastive_loss(x, y):
 # train the model: pretrained word2vec + Siamese CNN with SPP
 
 
-def train_pse(word2vec):
+def train_pse(word2vec, MODEL_PATH=None):
     pse_model = PatientSimiEval(word2vec.emb, feature_maps, kernel_size, spp_levels, out_dim)
     pse_model.to(DEVICE)
 
@@ -108,8 +113,9 @@ def train_pse(word2vec):
     params = (p for p in pse_model.parameters() if p.requires_grad)
     optim = torch.optim.Adam(lr=sc_lr, params=params)
 
+    loss_list = []
     for epoch in trange(scnn_epochs, desc='Training PSE'):    
-        for codes, cohorts in tqdm(data_loader):
+        for i, (codes, cohorts) in tqdm(enumerate(data_loader)):
             reps = pse_model(codes)
             
             loss = contrastive_loss(reps, cohorts)      
@@ -117,8 +123,15 @@ def train_pse(word2vec):
             
             optim.step()
             optim.zero_grad()
+            loss_list.append(loss.item())
+            
+            if i % 100 == 0:
+                loss_list.append(loss.item())
+            
+        if MODEL_PATH is not None:
+            torch.save(pse_model, MODEL_PATH + f'pse_{epoch}' )
         
-    return pse_model
+    return pse_model, loss_list
         
         
    
