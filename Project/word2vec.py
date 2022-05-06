@@ -1,12 +1,15 @@
+from dataclasses import dataclass
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, IterableDataset
 import torch.nn.functional as F
+from mimic import Mimic3
 
 from collections import Counter
 import numpy as np
 
 from tqdm import tqdm
+
 
 class Word2Vec(nn.Module):
     def __init__(self, emb_dim, num_codes):
@@ -21,14 +24,14 @@ class Word2Vec(nn.Module):
 
 
 class SkipGramDataset(Dataset): # TODO: use IterableDataset instead
-    def __init__(self, data, alpha, beta):
+    def __init__(self, dataset: Mimic3, alpha, beta):
         """
         Args:
             data (list[list[medical codes]]): list of medical concepts of patients.
         """
         super().__init__()
         
-        self.data = data
+        self.dataset = dataset
         self.alpha = alpha
         self.beta = beta
 
@@ -43,7 +46,7 @@ class SkipGramDataset(Dataset): # TODO: use IterableDataset instead
 
     def build_center_context_pairs(self):
         pairs = []
-        for codes, _ in tqdm(self.data):
+        for codes, _ in tqdm(self.dataset):
             counts = Counter(codes)
             for i, center in enumerate(codes):
                 window = np.clip(counts[center], self.alpha, self.beta)
@@ -53,4 +56,28 @@ class SkipGramDataset(Dataset): # TODO: use IterableDataset instead
         return pairs
 
 
+class SkipGramIterDataset(IterableDataset):
+    def __init__(self, dataset: Mimic3, alpha, beta):
+        """
+        Args:
+            data (list[list[medical codes]]): list of medical concepts of patients.
+        """
+        super().__init__()
+        
+        self.dataset = dataset
+        self.alpha = alpha
+        self.beta = beta
+    
+    def __len__(self):
+        """ Estimate of number of (center,context) pairs"""
+        total_ncodes = self.dataset.data.apply(len).sum()
+        return int(total_ncodes * (self.alpha + self.beta) / 2)
 
+    def __iter__(self):
+        for codes, _ in self.dataset:
+            counts = Counter(codes)
+            for i, center in enumerate(codes):
+                window = np.clip(counts[center], self.alpha, self.beta)
+                contexts = codes[i - window: i] + codes[i + 1: i + 1 + window]
+                for context in contexts:
+                    yield (center, context)
