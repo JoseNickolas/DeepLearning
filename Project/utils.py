@@ -1,11 +1,15 @@
-import numpy as np
+from pathlib import Path
+import json
 
-def _has_intersection(x, y):
+import numpy as np
+from sklearn.metrics import pairwise_distances_chunked
+
+@np.vectorize
+def has_intersection(x, y):
     """weather 1d arrays x and y has any common elements"""
     return len(set(x) & set(y)) > 0
     
-has_intersection = np.vectorize(_has_intersection)
-
+    
 def pairwise_intersect(x):
     """weather pairs of arrays in x has intersection or not
 
@@ -19,3 +23,17 @@ def pairwise_intersect(x):
     return has_intersection(x, x[:, None])
     
     
+def save_config(config, path):
+    path = Path(path) / 'config.json'
+    with open(path, 'w') as file:
+        file.write(json.dumps(config))
+    
+    
+def find_nearest(representation, metric):
+    nearest = []
+    for pdist in pairwise_distances_chunked(representation, metric=metric, n_jobs=-1):
+        if metric == 'cosine':
+            pdist = 1 - pdist
+        np.fill_diagonal(pdist, np.inf)
+        nearest.append(pdist.argmin(axis=1))
+    return np.hstack(nearest)
