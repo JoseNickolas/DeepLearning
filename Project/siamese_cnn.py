@@ -15,7 +15,9 @@ class SiameseCNN(nn.Module):
         
     def forward(self, x):
         x = self.conv(x)
+        x = F.relu(x)
         x = self.spp(x)
+        x = F.relu(x)
         x = self.linear(x)
         return x
     
