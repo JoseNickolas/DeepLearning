@@ -6,6 +6,7 @@ import torch.nn.functional as F
 import pandas as pd
 import numpy as np
 
+DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 class Mimic3(Dataset):
     def __init__(self, data_path, cohorts=None, apply_vocab=True, to_tensor=True):
@@ -196,4 +197,7 @@ class Mimic3(Dataset):
         
         
         
-        
+def coallate(batch):
+    codes, cohorts = zip(*batch)
+    codes = [torch.tensor(c, dtype=torch.long, device=DEVICE) for c in codes]
+    return codes, cohorts
