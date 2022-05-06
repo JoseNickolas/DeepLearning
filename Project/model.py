@@ -4,8 +4,8 @@ from torch.utils.data import Dataset
 import torch.nn.functional as F
 # from torch.nn.utils.rnn import pad_sequence
 
-from .siamese_cnn import SiameseCNN
-from .word2vec import Word2Vec
+from siamese_cnn import SiameseCNN
+from word2vec import Word2Vec
 
 
 class PatientSimiEval(nn.Module):
@@ -21,8 +21,8 @@ class PatientSimiEval(nn.Module):
         for codes in code_seq: # TODO: use PackedSquence, or padding, move for loop to SPP.
             embs = self.embedding(codes)  # ncodes, emb_dim
             embs = embs[None, None, :, :] # 1 (batch), 1 (channel), ncodes, emb_dim
-            pater_rep = self.scnn(embs)
-            result.append(pater_rep)
+            patient_rep = self.scnn(embs)
+            result.append(patient_rep)
         
         return torch.cat(result, dim=0) # batch, out_dim
         
