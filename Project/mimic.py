@@ -85,7 +85,7 @@ class Mimic3(Dataset):
         # (1) remove the patients with missing data on admission date and discharge date;
         remove_ids.update(self.df[self.df['ADMITTIME'].isna() | self.df['DISCHTIME'].isna()]['SUBJECT_ID'])
 
-        # (2) We keep the patients which consist of at least thirty medical codes;
+        # (2) keep the patients which consist of at least thirty medical codes;
         # size = diag_icd.groupby(['SUBJECT_ID']).size()
         # remove_ids.update(size[size < 30].index)
 
