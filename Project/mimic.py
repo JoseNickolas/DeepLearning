@@ -82,7 +82,7 @@ class Mimic3(Dataset):
     def filter_subjects(self):
         remove_ids = set()
         
-        # (1) We remove the patients with missing data on admission date and discharge date;
+        # (1) remove the patients with missing data on admission date and discharge date;
         remove_ids.update(self.df[self.df['ADMITTIME'].isna() | self.df['DISCHTIME'].isna()]['SUBJECT_ID'])
 
         # (2) We keep the patients which consist of at least thirty medical codes;
@@ -90,10 +90,10 @@ class Mimic3(Dataset):
         # remove_ids.update(size[size < 30].index)
 
 
-        # (3) We remove the patients which have the discharge date after 2200/1/1; 
+        # (3) remove the patients which have the discharge date after 2200/1/1; 
         remove_ids.update(self.df[self.df['DISCHTIME'] > '2200-1-1']['SUBJECT_ID'])
 
-        # (4) We remove the patients who have the missing data on diagnosis.
+        # (4) remove the patients who have the missing data on diagnosis.
         remove_ids.update(self.diag_icd[self.diag_icd['ICD9_CODE'].isna()]['SUBJECT_ID'])
 
         # (5) Atherosclerosis, Heart Failure, Kidney Failure, Intestinal Diseases, Liver Diseases, Pneumonia, Septicemia, Respiratory Failure and Gastriti
@@ -101,7 +101,7 @@ class Mimic3(Dataset):
         not_in_cohort = pd.concat((self.diag_icd['SUBJECT_ID'], ~is_in_cohort), axis=1).groupby('SUBJECT_ID')['IN_COHORT'].aggregate(np.all)
         remove_ids.update(not_in_cohort[not_in_cohort].index)
 
-        # (6) we remove the medical concepts that are co-occurring less than three times
+        # (6) remove the medical concepts that are co-occurring less than three times
         codes = self.diag_icd.groupby('ICD9_CODE')['SUBJECT_ID'].nunique()
         remove_codes = codes[codes < 3].index
         self.diag_icd = self.diag_icd[~ self.diag_icd['ICD9_CODE'].isin(remove_codes)]
